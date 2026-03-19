@@ -188,5 +188,11 @@ function formatDuration(ms) {
   }
 }
 
+// Debug: check if token is loaded
+const token = process.env.DISCORD_TOKEN;
+console.log(`🔍 Token loaded: ${token ? 'YES (' + token.substring(0, 10) + '...)' : 'NO - TOKEN IS MISSING!'}`);
+console.log(`🔍 CLIENT_ID: ${process.env.CLIENT_ID || 'MISSING'}`);
+console.log(`🔍 GUILD_ID: ${process.env.GUILD_ID || 'MISSING'}`);
+
 // Login
-client.login(process.env.DISCORD_TOKEN);
+client.login(token);
