@@ -16,6 +16,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
@@ -245,7 +246,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       )
       .setTimestamp();
 
-    await reportChannel.send({ embeds: [embed] });
+    try {
+      await reportChannel.send({ embeds: [embed] });
+    } catch (err) {
+      console.error('❌ Không gửi được báo cáo JOIN:', err.message);
+    }
   }
 
   // User left bot's voice channel
@@ -265,7 +270,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       )
       .setTimestamp();
 
-    await reportChannel.send({ embeds: [embed] });
+    try {
+      await reportChannel.send({ embeds: [embed] });
+    } catch (err) {
+      console.error('❌ Không gửi được báo cáo LEAVE:', err.message);
+    }
   }
 });
 
