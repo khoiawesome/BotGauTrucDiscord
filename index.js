@@ -38,6 +38,7 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, guild, member } = interaction;
+  console.log(`📩 Nhận command: /${commandName} từ ${member?.displayName || 'unknown'}`);
 
   // ========================
   // /join — Bot vào voice channel
