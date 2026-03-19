@@ -22,6 +22,12 @@ const client = new Client({
 // Track when bot joined each guild's voice channel
 const joinTimestamps = new Map();
 
+// Track when each user joined voice (guildId -> Map<userId, timestamp>)
+const userJoinTimes = new Map();
+
+// Track which text channel to send reports to (guildId -> channelId)
+const reportChannels = new Map();
+
 client.once('clientReady', () => {
   console.log(`✅ GauTruc đã online! Logged in as ${client.user.tag}`);
   client.user.setActivity('Đang treo voice 🎙️', { type: ActivityType.Custom });
@@ -87,10 +93,25 @@ client.on('interactionCreate', async (interaction) => {
       // Record join time
       joinTimestamps.set(guild.id, Date.now());
 
+      // Set report channel to where the command was used
+      reportChannels.set(guild.id, interaction.channelId);
+
+      // Initialize user tracking for this guild
+      if (!userJoinTimes.has(guild.id)) {
+        userJoinTimes.set(guild.id, new Map());
+      }
+
+      // Track users already in the voice channel
+      voiceChannel.members.forEach((m) => {
+        if (!m.user.bot) {
+          userJoinTimes.get(guild.id).set(m.id, Date.now());
+        }
+      });
+
       const embed = new EmbedBuilder()
         .setColor(0x57f287)
         .setTitle('🎙️ GauTruc đã vào voice!')
-        .setDescription(`Đã vào **${voiceChannel.name}**\nĐang treo câu giờ... 🕐`)
+        .setDescription(`Đã vào **${voiceChannel.name}**\nĐang treo câu giờ... 🕐\n📋 Báo cáo sẽ gửi tại <#${interaction.channelId}>`)
         .setFooter({ text: 'Dùng /leave để mình rời | /status để xem thời gian' })
         .setTimestamp();
 
@@ -164,6 +185,87 @@ client.on('interactionCreate', async (interaction) => {
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
+  }
+
+  // ========================
+  // /setchannel — Đổi kênh báo cáo
+  // ========================
+  if (commandName === 'setchannel') {
+    reportChannels.set(guild.id, interaction.channelId);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle('📋 Đã đổi kênh báo cáo!')
+      .setDescription(`Báo cáo voice activity sẽ gửi tại <#${interaction.channelId}>`)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  }
+});
+
+// ========================
+// Voice State Tracking
+// ========================
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  const guild = newState.guild;
+  const botVoiceChannel = guild.members.me?.voice?.channel;
+
+  // Only track if bot is in a voice channel
+  if (!botVoiceChannel) return;
+
+  const member = newState.member;
+  if (member.user.bot) return; // Ignore bots
+
+  const reportChannelId = reportChannels.get(guild.id);
+  if (!reportChannelId) return;
+
+  const reportChannel = guild.channels.cache.get(reportChannelId);
+  if (!reportChannel) return;
+
+  // Initialize guild tracking
+  if (!userJoinTimes.has(guild.id)) {
+    userJoinTimes.set(guild.id, new Map());
+  }
+  const guildUserTimes = userJoinTimes.get(guild.id);
+
+  const oldChannel = oldState.channel;
+  const newChannel = newState.channel;
+
+  // User joined bot's voice channel
+  if (newChannel?.id === botVoiceChannel.id && oldChannel?.id !== botVoiceChannel.id) {
+    guildUserTimes.set(member.id, Date.now());
+
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle('📥 Có người vào voice!')
+      .setDescription(`**${member.displayName}** đã vào **${botVoiceChannel.name}**`)
+      .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
+      .addFields(
+        { name: '👥 Số người trong room', value: `${botVoiceChannel.members.filter(m => !m.user.bot).size}`, inline: true }
+      )
+      .setTimestamp();
+
+    await reportChannel.send({ embeds: [embed] });
+  }
+
+  // User left bot's voice channel
+  if (oldChannel?.id === botVoiceChannel.id && newChannel?.id !== botVoiceChannel.id) {
+    const joinTime = guildUserTimes.get(member.id);
+    const duration = joinTime ? formatDuration(Date.now() - joinTime) : 'Không rõ';
+    guildUserTimes.delete(member.id);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xed4245)
+      .setTitle('📤 Có người rời voice!')
+      .setDescription(`**${member.displayName}** đã rời **${oldChannel.name}**`)
+      .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
+      .addFields(
+        { name: '⏱️ Thời gian trong room', value: duration, inline: true },
+        { name: '👥 Còn lại trong room', value: `${botVoiceChannel.members.filter(m => !m.user.bot).size}`, inline: true }
+      )
+      .setTimestamp();
+
+    await reportChannel.send({ embeds: [embed] });
   }
 });
 

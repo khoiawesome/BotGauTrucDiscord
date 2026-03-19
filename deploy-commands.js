@@ -11,6 +11,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName('status')
     .setDescription('Xem GauTruc đang ở channel nào và đã treo bao lâu'),
+  new SlashCommandBuilder()
+    .setName('setchannel')
+    .setDescription('Đổi kênh nhận báo cáo voice activity sang kênh hiện tại'),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
