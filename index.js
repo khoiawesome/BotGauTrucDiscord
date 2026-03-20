@@ -35,6 +35,10 @@ const reachedMilestones = new Map();
 // Milestone intervals for milestone checker (guildId -> intervalId)
 const milestoneIntervals = new Map();
 
+// DM notify: when a watched user joins voice, DM the watcher
+// guildId -> Map<watchedUserId, Set<watcherUserId>>
+const dmNotify = new Map();
+
 // Track user milestone progress (guildId -> Map<userId, milestoneIndex>)
 const userReachedMilestones = new Map();
 
@@ -460,6 +464,73 @@ client.on('interactionCreate', async (interaction) => {
 
     await interaction.reply({ embeds: [embed] });
   }
+
+  // ========================
+  // /notify — Nhận DM khi người cụ thể vào voice
+  // ========================
+  if (commandName === 'notify') {
+    const targetUser = interaction.options.getUser('user');
+
+    if (targetUser.bot) {
+      return interaction.reply({
+        content: '❌ Không thể theo dõi bot!',
+        ephemeral: true,
+      });
+    }
+
+    if (targetUser.id === interaction.user.id) {
+      return interaction.reply({
+        content: '❌ Bạn không thể tự theo dõi chính mình!',
+        ephemeral: true,
+      });
+    }
+
+    if (!dmNotify.has(guild.id)) {
+      dmNotify.set(guild.id, new Map());
+    }
+    const guildNotify = dmNotify.get(guild.id);
+    if (!guildNotify.has(targetUser.id)) {
+      guildNotify.set(targetUser.id, new Set());
+    }
+    guildNotify.get(targetUser.id).add(interaction.user.id);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle('🔔 Đã bật thông báo!')
+      .setDescription(`Bạn sẽ nhận DM khi **${targetUser.displayName}** vào voice channel.`)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  // ========================
+  // /unnotify — Tắt thông báo DM
+  // ========================
+  if (commandName === 'unnotify') {
+    const targetUser = interaction.options.getUser('user');
+    const guildNotify = dmNotify.get(guild.id);
+    const watchers = guildNotify?.get(targetUser.id);
+
+    if (!watchers || !watchers.has(interaction.user.id)) {
+      return interaction.reply({
+        content: '❌ Bạn chưa theo dõi người này!',
+        ephemeral: true,
+      });
+    }
+
+    watchers.delete(interaction.user.id);
+    if (watchers.size === 0) {
+      guildNotify.delete(targetUser.id);
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xed4245)
+      .setTitle('🔕 Đã tắt thông báo!')
+      .setDescription(`Bạn sẽ không nhận DM khi **${targetUser.displayName}** vào voice nữa.`)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
 });
 
 // ========================
@@ -520,6 +591,29 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       await reportChannel.send({ embeds: [embed] });
     } catch (err) {
       console.error('❌ Không gửi được báo cáo JOIN:', err.message);
+    }
+
+    // DM notify: send DM to watchers when this user joins voice
+    const guildNotify = dmNotify.get(guild.id);
+    if (guildNotify) {
+      const watchers = guildNotify.get(member.id);
+      if (watchers && watchers.size > 0) {
+        const dmEmbed = new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle('🔔 Thông báo voice!')
+          .setDescription(`**${member.displayName}** vừa vào **${botVoiceChannel.name}** trong server **${guild.name}**!`)
+          .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
+          .setTimestamp();
+
+        for (const watcherId of watchers) {
+          try {
+            const watcher = await client.users.fetch(watcherId);
+            await watcher.send({ embeds: [dmEmbed] });
+          } catch (err) {
+            console.error(`❌ Không gửi được DM cho ${watcherId}:`, err.message);
+          }
+        }
+      }
     }
   }
 

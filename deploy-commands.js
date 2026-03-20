@@ -14,6 +14,22 @@ const commands = [
   new SlashCommandBuilder()
     .setName('setchannel')
     .setDescription('Đổi kênh nhận báo cáo voice activity sang kênh hiện tại'),
+  new SlashCommandBuilder()
+    .setName('notify')
+    .setDescription('Nhận DM khi một người cụ thể vào voice channel')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('Người bạn muốn theo dõi')
+        .setRequired(true)
+    ),
+  new SlashCommandBuilder()
+    .setName('unnotify')
+    .setDescription('Tắt thông báo DM cho một người')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('Người bạn muốn bỏ theo dõi')
+        .setRequired(true)
+    ),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
