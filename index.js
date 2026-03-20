@@ -29,6 +29,253 @@ const userJoinTimes = new Map();
 // Track which text channel to send reports to (guildId -> channelId)
 const reportChannels = new Map();
 
+// Track which milestone index has been reached (guildId -> milestoneIndex)
+const reachedMilestones = new Map();
+
+// Milestone intervals for milestone checker (guildId -> intervalId)
+const milestoneIntervals = new Map();
+
+// Track user milestone progress (guildId -> Map<userId, milestoneIndex>)
+const userReachedMilestones = new Map();
+
+// User milestone checker intervals (guildId -> Map<userId, intervalId>)
+const userMilestoneIntervals = new Map();
+
+// User milestones config (in milliseconds)
+const USER_MILESTONES = [
+  { time: 1 * 60 * 60 * 1000, label: '1 giờ', emoji: '🎉', message: (name) => `🎉 **${name}** đã ngồi voice được **1 giờ** rồi! Mới bắt đầu thôi, cố lên nào~ 💪` },
+  { time: 5 * 60 * 60 * 1000, label: '5 giờ', emoji: '🔥', message: (name) => `🔥 **${name}** đã **5 giờ** trong voice! Kiên trì phết ha! Respect! 🐻` },
+  { time: 10 * 60 * 60 * 1000, label: '10 giờ', emoji: '💪', message: (name) => `💪 **${name}** đã ngồi **10 giờ** liên tục! Bạn sắp thành huyền thoại rồi đó! 🏆` },
+  { time: 20 * 60 * 60 * 1000, label: '20 giờ', emoji: '🌙', message: (name) => `🌙 **${name}** ở voice **20 giờ** rồi?! Bạn không ngủ à?! Kinh nể! 🫡` },
+  { time: 24 * 60 * 60 * 1000, label: '1 ngày', emoji: '☀️', message: (name) => `🎊 **${name}** đã ở voice TRỌN **1 NGÀY**! Xứng đáng nhận huy chương vàng! 🥇🐻` },
+  { time: 48 * 60 * 60 * 1000, label: '2 ngày', emoji: '⚡', message: (name) => `⚡ **${name}** ở voice **2 NGÀY** rồi! Đã vượt qua giới hạn con người! 🦸` },
+  { time: 50 * 60 * 60 * 1000, label: '50 giờ', emoji: '🏅', message: (name) => `🏅 **${name}** — **50 GIỜ** trong voice!! Nửa đường tới 100 giờ, không ai cản nổi bạn! 🔥🐻🔥` },
+  { time: 72 * 60 * 60 * 1000, label: '3 ngày', emoji: '👑', message: (name) => `👑 **${name}** — **3 NGÀY** trong voice! Bạn giờ là VUA/NỮ HOÀNG của voice channel! 👑` },
+  { time: 100 * 60 * 60 * 1000, label: '100 giờ', emoji: '💯', message: (name) => `💯🎆 **${name}** — **100 GIỜ** trong voice!!! CON SỐ HUYỀN THOẠI!! Bạn là sinh vật không cần ngủ!! 🐻👑🏆💯` },
+  { time: 120 * 60 * 60 * 1000, label: '5 ngày', emoji: '🌟', message: (name) => `✨ **${name}** — **5 NGÀY** ở voice?! Đây là truyền thuyết chứ không phải thực tế nữa! 🌟🐻✨` },
+  { time: 168 * 60 * 60 * 1000, label: '7 ngày', emoji: '🤯', message: (name) => `🤯🤯🤯 **${name}** — **7 NGÀY = 1 TUẦN** liên tục trong voice!! KHÔNG THỂ TIN ĐƯỢC!! Bạn đã đạt đến cảnh giới THẦN THÁNH!! 🐻👑🏆🎆` },
+];
+
+// Milestones config (in milliseconds)
+const MILESTONES = [
+  { time: 1 * 60 * 60 * 1000, label: '1 giờ', emoji: '🎉', message: 'GauTruc đã treo được **1 giờ**! Mới khởi động thôi, còn dài lắm~ 💪' },
+  { time: 5 * 60 * 60 * 1000, label: '5 giờ', emoji: '🔥', message: 'Đã **5 giờ** rồi đó! GauTruc kiên trì phết ha! 🐻' },
+  { time: 10 * 60 * 60 * 1000, label: '10 giờ', emoji: '💪', message: '**10 giờ** liên tục trong voice! GauTruc sắp thành huyền thoại rồi! 🏆' },
+  { time: 20 * 60 * 60 * 1000, label: '20 giờ', emoji: '🌙', message: '**20 giờ**?! GauTruc không ngủ à?! Respect! 🫡' },
+  { time: 24 * 60 * 60 * 1000, label: '1 ngày', emoji: '☀️', message: '🎊 TRỌN **1 NGÀY** trong voice! GauTruc xứng đáng nhận huy chương vàng! 🥇' },
+  { time: 48 * 60 * 60 * 1000, label: '2 ngày', emoji: '⚡', message: '**2 NGÀY** rồi nha! GauTruc đã vượt qua giới hạn con người! 🦸' },
+  { time: 50 * 60 * 60 * 1000, label: '50 giờ', emoji: '🏅', message: '🏅 **50 GIỜ** trong voice!! GauTruc nửa đường tới 100 giờ, không gì cản nổi! 🔥🐻🔥' },
+  { time: 72 * 60 * 60 * 1000, label: '3 ngày', emoji: '👑', message: '**3 NGÀY**! GauTruc giờ là VUA của voice channel! 👑🐻' },
+  { time: 100 * 60 * 60 * 1000, label: '100 giờ', emoji: '💯', message: '💯🎆 **100 GIỜ** trong voice!!! CON SỐ HUYỀN THOẠI!! GauTruc đã trở thành bất tử!! 🐻👑🏆💯' },
+  { time: 120 * 60 * 60 * 1000, label: '5 ngày', emoji: '🌟', message: '**5 NGÀY** ở trong voice?! Đây là truyền thuyết chứ không còn là thực tế nữa! ✨🐻✨' },
+  { time: 168 * 60 * 60 * 1000, label: '7 ngày', emoji: '🤯', message: '🤯🤯🤯 **7 NGÀY = 1 TUẦN** liên tục trong voice!! KHÔNG THỂ TIN ĐƯỢC!! GauTruc đã đạt đến cảnh giới THẦN THÁNH!! 🐻👑🏆🎆' },
+];
+
+/**
+ * Start milestone checker for a guild
+ */
+function startMilestoneChecker(guild) {
+  // Clear existing interval if any
+  if (milestoneIntervals.has(guild.id)) {
+    clearInterval(milestoneIntervals.get(guild.id));
+  }
+  reachedMilestones.set(guild.id, -1);
+
+  const intervalId = setInterval(async () => {
+    const joinTime = joinTimestamps.get(guild.id);
+    if (!joinTime) return;
+
+    const elapsed = Date.now() - joinTime;
+    const currentMilestoneIdx = reachedMilestones.get(guild.id) ?? -1;
+
+    // Check which milestone we've reached
+    let nextIdx = currentMilestoneIdx + 1;
+
+    // If past all milestones, cycle back to the last one every 7 days
+    if (nextIdx >= MILESTONES.length) {
+      const lastMilestone = MILESTONES[MILESTONES.length - 1];
+      const cycleCount = Math.floor(elapsed / lastMilestone.time);
+      const expectedIdx = MILESTONES.length - 1 + cycleCount;
+      if (expectedIdx <= currentMilestoneIdx) return;
+      nextIdx = currentMilestoneIdx + 1;
+    }
+
+    // Check if we've passed the next milestone
+    let milestoneToAnnounce = null;
+    if (nextIdx < MILESTONES.length && elapsed >= MILESTONES[nextIdx].time) {
+      milestoneToAnnounce = MILESTONES[nextIdx];
+      reachedMilestones.set(guild.id, nextIdx);
+    } else if (nextIdx >= MILESTONES.length) {
+      // Repeat last milestone every 7 days
+      const lastMs = MILESTONES[MILESTONES.length - 1];
+      const repeatCount = currentMilestoneIdx - MILESTONES.length + 2;
+      const nextTime = lastMs.time * (repeatCount + 1);
+      if (elapsed >= nextTime) {
+        const weeks = repeatCount + 1;
+        milestoneToAnnounce = {
+          emoji: '🤯',
+          message: `🤯🤯🤯 **${weeks} TUẦN** liên tục trong voice!! KHÔNG THỂ TIN ĐƯỢC!! GauTruc đã phá kỷ lục bản thân!! 🐻👑🏆🎆`,
+        };
+        reachedMilestones.set(guild.id, currentMilestoneIdx + 1);
+      }
+    }
+
+    if (!milestoneToAnnounce) return;
+
+    const reportChannelId = reportChannels.get(guild.id);
+    if (!reportChannelId) return;
+
+    try {
+      const reportChannel = await guild.channels.fetch(reportChannelId);
+      const embed = new EmbedBuilder()
+        .setColor(0xfee75c)
+        .setTitle(`${milestoneToAnnounce.emoji} MILESTONE!`)
+        .setDescription(milestoneToAnnounce.message)
+        .addFields(
+          { name: '⏱️ Tổng thời gian', value: formatDuration(elapsed), inline: true }
+        )
+        .setTimestamp();
+
+      await reportChannel.send({ embeds: [embed] });
+    } catch (err) {
+      console.error('❌ Không gửi được milestone:', err.message);
+    }
+  }, 30 * 1000); // Check every 30 seconds
+
+  milestoneIntervals.set(guild.id, intervalId);
+}
+
+/**
+ * Stop milestone checker for a guild
+ */
+function stopMilestoneChecker(guildId) {
+  const intervalId = milestoneIntervals.get(guildId);
+  if (intervalId) {
+    clearInterval(intervalId);
+    milestoneIntervals.delete(guildId);
+  }
+  reachedMilestones.delete(guildId);
+}
+
+/**
+ * Start milestone checker for a specific user in a guild
+ */
+function startUserMilestoneChecker(guild, userId) {
+  if (!userMilestoneIntervals.has(guild.id)) {
+    userMilestoneIntervals.set(guild.id, new Map());
+  }
+  if (!userReachedMilestones.has(guild.id)) {
+    userReachedMilestones.set(guild.id, new Map());
+  }
+
+  // Clear existing interval for this user
+  const guildIntervals = userMilestoneIntervals.get(guild.id);
+  if (guildIntervals.has(userId)) {
+    clearInterval(guildIntervals.get(userId));
+  }
+  userReachedMilestones.get(guild.id).set(userId, -1);
+
+  const intervalId = setInterval(async () => {
+    const guildUserTimes = userJoinTimes.get(guild.id);
+    if (!guildUserTimes) return;
+    const joinTime = guildUserTimes.get(userId);
+    if (!joinTime) return;
+
+    const elapsed = Date.now() - joinTime;
+    const milestoneMap = userReachedMilestones.get(guild.id);
+    if (!milestoneMap) return;
+    const currentIdx = milestoneMap.get(userId) ?? -1;
+
+    let nextIdx = currentIdx + 1;
+    let milestoneToAnnounce = null;
+
+    if (nextIdx < USER_MILESTONES.length) {
+      if (elapsed >= USER_MILESTONES[nextIdx].time) {
+        milestoneToAnnounce = USER_MILESTONES[nextIdx];
+        milestoneMap.set(userId, nextIdx);
+      }
+    } else {
+      // Past all milestones — repeat last milestone every 7 days
+      const lastMs = USER_MILESTONES[USER_MILESTONES.length - 1];
+      const repeatCount = currentIdx - USER_MILESTONES.length + 2;
+      const nextTime = lastMs.time * (repeatCount + 1);
+      if (elapsed >= nextTime) {
+        const weeks = repeatCount + 1;
+        milestoneToAnnounce = {
+          emoji: '🤯',
+          message: (name) => `🤯🤯🤯 **${name}** — **${weeks} TUẦN** liên tục trong voice!! KHÔNG THỂ TIN ĐƯỢC!! Bạn đã phá kỷ lục bản thân!! 🐻👑🏆🎆`,
+        };
+        milestoneMap.set(userId, currentIdx + 1);
+      }
+    }
+
+    if (!milestoneToAnnounce) return;
+
+    const reportChannelId = reportChannels.get(guild.id);
+    if (!reportChannelId) return;
+
+    try {
+      const reportChannel = await guild.channels.fetch(reportChannelId);
+      const member = await guild.members.fetch(userId);
+      const displayName = member.displayName;
+      const msgText = typeof milestoneToAnnounce.message === 'function'
+        ? milestoneToAnnounce.message(displayName)
+        : milestoneToAnnounce.message;
+
+      const embed = new EmbedBuilder()
+        .setColor(0xfee75c)
+        .setTitle(`${milestoneToAnnounce.emoji} USER MILESTONE!`)
+        .setDescription(msgText)
+        .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
+        .addFields(
+          { name: '⏱️ Thời gian trong room', value: formatDuration(elapsed), inline: true }
+        )
+        .setTimestamp();
+
+      await reportChannel.send({ embeds: [embed] });
+    } catch (err) {
+      console.error('❌ Không gửi được user milestone:', err.message);
+    }
+  }, 30 * 1000); // Check every 30 seconds
+
+  guildIntervals.set(userId, intervalId);
+}
+
+/**
+ * Stop milestone checker for a specific user
+ */
+function stopUserMilestoneChecker(guildId, userId) {
+  const guildIntervals = userMilestoneIntervals.get(guildId);
+  if (guildIntervals) {
+    const intervalId = guildIntervals.get(userId);
+    if (intervalId) {
+      clearInterval(intervalId);
+      guildIntervals.delete(userId);
+    }
+  }
+  const milestoneMap = userReachedMilestones.get(guildId);
+  if (milestoneMap) {
+    milestoneMap.delete(userId);
+  }
+}
+
+/**
+ * Stop all user milestone checkers for a guild
+ */
+function stopAllUserMilestoneCheckers(guildId) {
+  const guildIntervals = userMilestoneIntervals.get(guildId);
+  if (guildIntervals) {
+    for (const intervalId of guildIntervals.values()) {
+      clearInterval(intervalId);
+    }
+    guildIntervals.clear();
+  }
+  const milestoneMap = userReachedMilestones.get(guildId);
+  if (milestoneMap) {
+    milestoneMap.clear();
+  }
+}
+
 client.once('clientReady', () => {
   console.log(`✅ GauTruc đã online! Logged in as ${client.user.tag}`);
   client.user.setActivity('Đang treo voice 🎙️', { type: ActivityType.Custom });
@@ -84,16 +331,23 @@ client.on('interactionCreate', async (interaction) => {
           // Seems to be a real disconnect, destroy connection
           connection.destroy();
           joinTimestamps.delete(guild.id);
+          stopMilestoneChecker(guild.id);
+          stopAllUserMilestoneCheckers(guild.id);
           console.log(`🔌 Bị disconnect khỏi voice ở guild ${guild.name}`);
         }
       });
 
       connection.on(VoiceConnectionStatus.Destroyed, () => {
         joinTimestamps.delete(guild.id);
+        stopMilestoneChecker(guild.id);
+        stopAllUserMilestoneCheckers(guild.id);
       });
 
       // Record join time
       joinTimestamps.set(guild.id, Date.now());
+
+      // Start milestone checker
+      startMilestoneChecker(guild);
 
       // Set report channel to where the command was used
       reportChannels.set(guild.id, interaction.channelId);
@@ -107,6 +361,7 @@ client.on('interactionCreate', async (interaction) => {
       voiceChannel.members.forEach((m) => {
         if (!m.user.bot) {
           userJoinTimes.get(guild.id).set(m.id, Date.now());
+          startUserMilestoneChecker(guild, m.id);
         }
       });
 
@@ -145,6 +400,8 @@ client.on('interactionCreate', async (interaction) => {
 
     connection.destroy();
     joinTimestamps.delete(guild.id);
+    stopMilestoneChecker(guild.id);
+    stopAllUserMilestoneCheckers(guild.id);
 
     const embed = new EmbedBuilder()
       .setColor(0xed4245)
@@ -213,16 +470,27 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   const botVoiceChannel = guild.members.me?.voice?.channel;
 
   // Only track if bot is in a voice channel
-  if (!botVoiceChannel) return;
+  if (!botVoiceChannel) {
+    console.log('🔇 voiceStateUpdate: bot không ở voice channel nào');
+    return;
+  }
 
   const member = newState.member;
   if (member.user.bot) return; // Ignore bots
 
   const reportChannelId = reportChannels.get(guild.id);
-  if (!reportChannelId) return;
+  if (!reportChannelId) {
+    console.log('🔇 voiceStateUpdate: chưa set report channel (chưa dùng /join hoặc /setchannel)');
+    return;
+  }
 
-  const reportChannel = guild.channels.cache.get(reportChannelId);
-  if (!reportChannel) return;
+  let reportChannel;
+  try {
+    reportChannel = await guild.channels.fetch(reportChannelId);
+  } catch (err) {
+    console.error('❌ Không tìm được report channel:', err.message);
+    return;
+  }
 
   // Initialize guild tracking
   if (!userJoinTimes.has(guild.id)) {
@@ -236,6 +504,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   // User joined bot's voice channel
   if (newChannel?.id === botVoiceChannel.id && oldChannel?.id !== botVoiceChannel.id) {
     guildUserTimes.set(member.id, Date.now());
+    startUserMilestoneChecker(guild, member.id);
 
     const embed = new EmbedBuilder()
       .setColor(0x57f287)
@@ -259,6 +528,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const joinTime = guildUserTimes.get(member.id);
     const duration = joinTime ? formatDuration(Date.now() - joinTime) : 'Không rõ';
     guildUserTimes.delete(member.id);
+    stopUserMilestoneChecker(guild.id, member.id);
 
     const embed = new EmbedBuilder()
       .setColor(0xed4245)
