@@ -35,8 +35,8 @@ const reachedMilestones = new Map();
 // Milestone intervals for milestone checker (guildId -> intervalId)
 const milestoneIntervals = new Map();
 
-// DM notify: when a watched user joins voice, DM the watcher
-// guildId -> Map<watchedUserId, Set<watcherUserId>>
+// DM notify: when the caller joins voice, DM the target user
+// guildId -> Map<callerUserId, Set<receiverUserId>>
 const dmNotify = new Map();
 
 // Track user milestone progress (guildId -> Map<userId, milestoneIndex>)
@@ -466,21 +466,21 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   // ========================
-  // /notify — Nhận DM khi người cụ thể vào voice
+  // /notify — Khi bạn vào voice, người được chọn sẽ nhận DM
   // ========================
   if (commandName === 'notify') {
     const targetUser = interaction.options.getUser('user');
 
     if (targetUser.bot) {
       return interaction.reply({
-        content: '❌ Không thể theo dõi bot!',
+        content: '❌ Không thể chọn bot làm người nhận thông báo!',
         ephemeral: true,
       });
     }
 
     if (targetUser.id === interaction.user.id) {
       return interaction.reply({
-        content: '❌ Bạn không thể tự theo dõi chính mình!',
+        content: '❌ Bạn không thể tự thông báo cho chính mình!',
         ephemeral: true,
       });
     }
@@ -489,15 +489,15 @@ client.on('interactionCreate', async (interaction) => {
       dmNotify.set(guild.id, new Map());
     }
     const guildNotify = dmNotify.get(guild.id);
-    if (!guildNotify.has(targetUser.id)) {
-      guildNotify.set(targetUser.id, new Set());
+    if (!guildNotify.has(interaction.user.id)) {
+      guildNotify.set(interaction.user.id, new Set());
     }
-    guildNotify.get(targetUser.id).add(interaction.user.id);
+    guildNotify.get(interaction.user.id).add(targetUser.id);
 
     const embed = new EmbedBuilder()
       .setColor(0x57f287)
       .setTitle('🔔 Đã bật thông báo!')
-      .setDescription(`Bạn sẽ nhận DM khi **${targetUser.displayName}** vào voice channel.`)
+      .setDescription(`Khi bạn vào voice, **${targetUser.displayName}** sẽ nhận được DM.`)
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
@@ -509,24 +509,24 @@ client.on('interactionCreate', async (interaction) => {
   if (commandName === 'unnotify') {
     const targetUser = interaction.options.getUser('user');
     const guildNotify = dmNotify.get(guild.id);
-    const watchers = guildNotify?.get(targetUser.id);
+    const receivers = guildNotify?.get(interaction.user.id);
 
-    if (!watchers || !watchers.has(interaction.user.id)) {
+    if (!receivers || !receivers.has(targetUser.id)) {
       return interaction.reply({
-        content: '❌ Bạn chưa theo dõi người này!',
+        content: '❌ Bạn chưa đặt thông báo cho người này!',
         ephemeral: true,
       });
     }
 
-    watchers.delete(interaction.user.id);
-    if (watchers.size === 0) {
-      guildNotify.delete(targetUser.id);
+    receivers.delete(targetUser.id);
+    if (receivers.size === 0) {
+      guildNotify.delete(interaction.user.id);
     }
 
     const embed = new EmbedBuilder()
       .setColor(0xed4245)
       .setTitle('🔕 Đã tắt thông báo!')
-      .setDescription(`Bạn sẽ không nhận DM khi **${targetUser.displayName}** vào voice nữa.`)
+      .setDescription(`**${targetUser.displayName}** sẽ không nhận DM khi bạn vào voice nữa.`)
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
@@ -593,11 +593,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       console.error('❌ Không gửi được báo cáo JOIN:', err.message);
     }
 
-    // DM notify: send DM to watchers when this user joins voice
+    // DM notify: khi người này vào voice, gửi DM cho những người họ đã đặt
     const guildNotify = dmNotify.get(guild.id);
     if (guildNotify) {
-      const watchers = guildNotify.get(member.id);
-      if (watchers && watchers.size > 0) {
+      const receivers = guildNotify.get(member.id);
+      if (receivers && receivers.size > 0) {
         const dmEmbed = new EmbedBuilder()
           .setColor(0x5865f2)
           .setTitle('🔔 Thông báo voice!')
@@ -605,12 +605,12 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
           .setTimestamp();
 
-        for (const watcherId of watchers) {
+        for (const receiverId of receivers) {
           try {
-            const watcher = await client.users.fetch(watcherId);
-            await watcher.send({ embeds: [dmEmbed] });
+            const receiver = await client.users.fetch(receiverId);
+            await receiver.send({ embeds: [dmEmbed] });
           } catch (err) {
-            console.error(`❌ Không gửi được DM cho ${watcherId}:`, err.message);
+            console.error(`❌ Không gửi được DM cho ${receiverId}:`, err.message);
           }
         }
       }

@@ -16,18 +16,18 @@ const commands = [
     .setDescription('Đổi kênh nhận báo cáo voice activity sang kênh hiện tại'),
   new SlashCommandBuilder()
     .setName('notify')
-    .setDescription('Nhận DM khi một người cụ thể vào voice channel')
+    .setDescription('Khi bạn vào voice, người được chọn sẽ nhận DM thông báo')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('Người bạn muốn theo dõi')
+        .setDescription('Người sẽ nhận DM khi bạn vào voice')
         .setRequired(true)
     ),
   new SlashCommandBuilder()
     .setName('unnotify')
-    .setDescription('Tắt thông báo DM cho một người')
+    .setDescription('Tắt thông báo DM cho một người khi bạn vào voice')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('Người bạn muốn bỏ theo dõi')
+        .setDescription('Người bạn muốn tắt thông báo')
         .setRequired(true)
     ),
 ].map((cmd) => cmd.toJSON());
