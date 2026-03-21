@@ -39,6 +39,8 @@ const milestoneIntervals = new Map();
 // guildId -> Map<callerUserId, Set<receiverUserId>>
 const dmNotify = new Map();
 
+// Quiet mode: tắt thông báo milestone + voice join/leave (guildId -> boolean)
+const quietMode = new Map();
 // Track user milestone progress (guildId -> Map<userId, milestoneIndex>)
 const userReachedMilestones = new Map();
 
@@ -124,6 +126,7 @@ function startMilestoneChecker(guild) {
       }
     }
 
+    if (quietMode.get(guild.id)) return;
     if (!milestoneToAnnounce) return;
 
     const reportChannelId = reportChannels.get(guild.id);
@@ -213,6 +216,7 @@ function startUserMilestoneChecker(guild, userId) {
       }
     }
 
+    if (quietMode.get(guild.id)) return;
     if (!milestoneToAnnounce) return;
 
     const reportChannelId = reportChannels.get(guild.id);
@@ -531,6 +535,25 @@ client.on('interactionCreate', async (interaction) => {
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
   }
+
+  // ========================
+  // /quiet — Tắt/bật thông báo tự động
+  // ========================
+  if (commandName === 'quiet') {
+    const current = quietMode.get(guild.id) || false;
+    quietMode.set(guild.id, !current);
+
+    const embed = new EmbedBuilder()
+      .setColor(!current ? 0xed4245 : 0x57f287)
+      .setTitle(!current ? '🔇 Đã tắt thông báo' : '🔔 Đã bật thông báo')
+      .setDescription(!current
+        ? 'Bot sẽ không gửi thông báo milestone và ra/vào voice nữa.\nDùng `/quiet` lần nữa để bật lại.'
+        : 'Bot sẽ gửi lại thông báo milestone và ra/vào voice bình thường.'
+      )
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  }
 });
 
 // ========================
@@ -577,20 +600,22 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     guildUserTimes.set(member.id, Date.now());
     startUserMilestoneChecker(guild, member.id);
 
-    const embed = new EmbedBuilder()
-      .setColor(0x57f287)
-      .setTitle('📥 Có người vào voice!')
-      .setDescription(`**${member.displayName}** đã vào **${botVoiceChannel.name}**`)
-      .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
-      .addFields(
-        { name: '👥 Số người trong room', value: `${botVoiceChannel.members.filter(m => !m.user.bot).size}`, inline: true }
-      )
-      .setTimestamp();
+    if (!quietMode.get(guild.id)) {
+      const embed = new EmbedBuilder()
+        .setColor(0x57f287)
+        .setTitle('📥 Có người vào voice!')
+        .setDescription(`**${member.displayName}** đã vào **${botVoiceChannel.name}**`)
+        .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
+        .addFields(
+          { name: '👥 Số người trong room', value: `${botVoiceChannel.members.filter(m => !m.user.bot).size}`, inline: true }
+        )
+        .setTimestamp();
 
-    try {
-      await reportChannel.send({ embeds: [embed] });
-    } catch (err) {
-      console.error('❌ Không gửi được báo cáo JOIN:', err.message);
+      try {
+        await reportChannel.send({ embeds: [embed] });
+      } catch (err) {
+        console.error('❌ Không gửi được báo cáo JOIN:', err.message);
+      }
     }
 
     // DM notify: khi người này vào voice, gửi DM cho những người họ đã đặt
@@ -624,21 +649,23 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     guildUserTimes.delete(member.id);
     stopUserMilestoneChecker(guild.id, member.id);
 
-    const embed = new EmbedBuilder()
-      .setColor(0xed4245)
-      .setTitle('📤 Có người rời voice!')
-      .setDescription(`**${member.displayName}** đã rời **${oldChannel.name}**`)
-      .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
-      .addFields(
-        { name: '⏱️ Thời gian trong room', value: duration, inline: true },
-        { name: '👥 Còn lại trong room', value: `${botVoiceChannel.members.filter(m => !m.user.bot).size}`, inline: true }
-      )
-      .setTimestamp();
+    if (!quietMode.get(guild.id)) {
+      const embed = new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle('📤 Có người rời voice!')
+        .setDescription(`**${member.displayName}** đã rời **${oldChannel.name}**`)
+        .setThumbnail(member.user.displayAvatarURL({ size: 64 }))
+        .addFields(
+          { name: '⏱️ Thời gian trong room', value: duration, inline: true },
+          { name: '👥 Còn lại trong room', value: `${botVoiceChannel.members.filter(m => !m.user.bot).size}`, inline: true }
+        )
+        .setTimestamp();
 
-    try {
-      await reportChannel.send({ embeds: [embed] });
-    } catch (err) {
-      console.error('❌ Không gửi được báo cáo LEAVE:', err.message);
+      try {
+        await reportChannel.send({ embeds: [embed] });
+      } catch (err) {
+        console.error('❌ Không gửi được báo cáo LEAVE:', err.message);
+      }
     }
   }
 });

@@ -30,6 +30,9 @@ const commands = [
         .setDescription('Người bạn muốn tắt thông báo')
         .setRequired(true)
     ),
+  new SlashCommandBuilder()
+    .setName('quiet')
+    .setDescription('Tắt/bật thông báo milestone và ra/vào voice (toggle)'),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
